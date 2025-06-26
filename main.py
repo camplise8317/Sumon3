@@ -181,7 +181,9 @@ def auditar_item_con_llm(model_type, model_name, item_generado, grado, area, asi
 # --- Función para generar preguntas usando el modelo de generación seleccionado ---
 def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_type, audit_model_name, 
                                      fila_datos, criterios_generacion, manual_reglas_texto="", 
-                                     informacion_adicional_usuario="", prompt_generador_adicional="", prompt_auditor_adicional=""):
+                                     informacion_adicional_usuario="", 
+                                     prompt_bloom_adicional="", prompt_construccion_adicional="", prompt_especifico_adicional="", 
+                                     prompt_auditor_adicional=""):
     """
     Genera una pregunta educativa de opción múltiple usando el modelo de generación seleccionado
     y la itera para refinarla si la auditoría lo requiere.
@@ -249,6 +251,11 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
         - Proceso cognitivo (Taxonomía de Bloom): {proceso_cognitivo_elegido}
         - Descripción del proceso cognitivo:
           "{descripcion_bloom}"
+        
+        --- PROMPT ADICIONAL: TAXONOMÍA DE BLOOM / PROCESOS COGNITIVOS ---
+        {prompt_bloom_adicional if prompt_bloom_adicional else "No se proporcionaron prompts adicionales específicos para taxonomía de Bloom."}
+        ------------------------------------------------------------------
+
         - Nanohabilidad (foco principal del ítem): {nanohabilidad_elegida}
         - Nivel educativo esperado del estudiante: {contexto_educativo}
         - Nivel de dificultad deseado: {dificultad}
@@ -274,6 +281,10 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
         JUSTIFICACIONES:
         {formato_justificacion}
 
+        --- PROMPT ADICIONAL: REGLAS GENERALES DE CONSTRUCCIÓN ---
+        {prompt_construccion_adicional if prompt_construccion_adicional else "No se proporcionaron prompts adicionales específicos para reglas generales de construcción."}
+        ---------------------------------------------------------
+
         --- REGLAS ADICIONALES DEL MANUAL DE CONSTRUCCIÓN ---
         Considera y aplica estrictamente todas las directrices, ejemplos y restricciones contenidas en el siguiente manual.
         Esto es de suma importancia para la calidad y pertinencia del ítem.
@@ -282,13 +293,13 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
         {manual_reglas_texto}
         ----------------------------------------------------
 
-        --- INFORMACIÓN ADICIONAL PROPORCIONADA POR EL USUARIO ---
-        {informacion_adicional_usuario if informacion_adicional_usuario else "No se proporcionó información adicional."}
-        ----------------------------------------------------------
+        --- INFORMACIÓN ADICIONAL PROPORCIONADA POR EL USUARIO (Contexto General) ---
+        {informacion_adicional_usuario if informacion_adicional_usuario else "No se proporcionó información adicional general."}
+        ---------------------------------------------------------------------------
         
-        --- PROMPTS ADICIONALES DEL USUARIO PARA EL GENERADOR ---
-        {prompt_generador_adicional if prompt_generador_adicional else "No se proporcionaron prompts adicionales para el generador."}
-        ---------------------------------------------------
+        --- PROMPT ADICIONAL: COSAS ESPECÍFICAS A TENER EN CUENTA ---
+        {prompt_especifico_adicional if prompt_especifico_adicional else "No se proporcionaron prompts adicionales específicos para consideraciones adicionales."}
+        ----------------------------------------------------------
 
         --- DATO CLAVE PARA LA CONSTRUCCIÓN ---
         Basado en el foco temático y el proceso cognitivo, considera el siguiente dato o idea esencial:
@@ -377,8 +388,8 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                 auditoria_resultado, full_auditor_prompt = auditar_item_con_llm( # Recibe también el prompt del auditor
                     audit_model_type, audit_model_name,
                     item_generado=current_item_text,
-                    grado=grado_elegido, area=area_elegida, asignatura=asignatura_elegida, estacion=estacion_elegida,
-                    proceso_cognitivo=proceso_cognitivo_elegido, nanohabilidad=nanohabilidad_elegida,
+                    grado=grado_elegido, area=area_elegida, asignatura=asignatura_seleccionada, estacion=estacion_elegida,
+                    proceso_cognitivo=proceso_cognitivo_seleccionado, nanohabilidad=nanohabilidad_seleccionada,
                     microhabilidad=microhabilidad_elegida, competencia_nanohabilidad=competencia_nanohabilidad_elegida,
                     contexto_educativo=contexto_educativo, manual_reglas_texto=manual_reglas_texto,
                     descripcion_bloom=descripcion_bloom,
@@ -569,7 +580,7 @@ if uploaded_pdf_file:
     max_manual_length = 15000 
     if len(manual_reglas_texto) > max_manual_length:
         st.sidebar.warning(f"Manual es demasiado largo ({len(manual_reglas_texto)} caracteres). Truncando a {max_manual_length} caracteres para la IA.")
-        manual_reglas_texto = manual_regulas_texto[:max_manual_length]
+        manual_reglas_texto = manual_reglas_texto[:max_manual_length] # Corregido typo en variable
     st.sidebar.info(f"Manual de reglas cargado. Longitud final: {len(manual_reglas_texto)} caracteres.")
 
 # --- Lógica principal de Generación y Auditoría de Ítems ---
@@ -635,18 +646,44 @@ else:
         st.subheader("Personaliza con Prompts Adicionales (Opcional)")
         use_additional_prompts = st.checkbox("Activar Prompts Adicionales", help="Si activas esto, podrás añadir instrucciones específicas para el generador y/o el auditor.")
         
-        prompt_generador_adicional = ""
+        # Inicializar prompts adicionales
+        prompt_bloom_adicional = ""
+        prompt_construccion_adicional = ""
+        prompt_especifico_adicional = ""
         prompt_auditor_adicional = ""
 
         if use_additional_prompts:
             col_gen_prompt, col_audit_prompt = st.columns(2)
             with col_gen_prompt:
                 st.markdown("##### Prompts para el **Generador** de Ítems")
-                prompt_generador_adicional = st.text_area(
-                    "Instrucciones específicas para que la IA genere el ítem (ej: 'El contexto debe ser sobre la vida en el campo', 'Asegúrate que la respuesta correcta sea un cálculo simple'):", 
-                    height=200, 
-                    key="gen_prompt_add"
-                )
+                
+                # Opción 1: Prompts acerca de procesos cognitivos/Taxonomía de Bloom
+                use_bloom_prompt = st.checkbox("Prompts acerca de Procesos Cognitivos / Taxonomía de Bloom", key="chk_bloom_prompt")
+                if use_bloom_prompt:
+                    prompt_bloom_adicional = st.text_area(
+                        "Instrucciones para el generador sobre cómo aplicar la Taxonomía de Bloom (ej: 'El ítem debe requerir un análisis profundo de causas y efectos', 'Asegúrate de que el proceso cognitivo sea estrictamente de 'RECORDAR' y no de 'COMPRENDER'):", 
+                        height=100, 
+                        key="gen_bloom_prompt_text"
+                    )
+
+                # Opción 2: Prompts acerca de cosas generales de construcción
+                use_construccion_prompt = st.checkbox("Prompts acerca de Reglas Generales de Construcción", key="chk_construccion_prompt")
+                if use_construccion_prompt:
+                    prompt_construccion_adicional = st.text_area(
+                        "Instrucciones para el generador sobre el formato general o estilo (ej: 'Evita frases pasivas en el enunciado', 'Las opciones deben ser de longitud similar'):", 
+                        height=100, 
+                        key="gen_construccion_prompt_text"
+                    )
+
+                # Opción 3: Prompts acerca de cosas específicas a tener en cuenta adicionales
+                use_especifico_prompt = st.checkbox("Prompts acerca de Consideraciones Específicas Adicionales", key="chk_especifico_prompt")
+                if use_especifico_prompt:
+                    prompt_especifico_adicional = st.text_area(
+                        "Instrucciones muy específicas o de último minuto para el generador (ej: 'El contexto debe mencionar una actividad deportiva', 'Incluye un personaje llamado 'Sofía' en el enunciado'):", 
+                        height=100, 
+                        key="gen_especifico_prompt_text"
+                    )
+
             with col_audit_prompt:
                 st.markdown("##### Prompts para el **Auditor** de Ítems")
                 prompt_auditor_adicional = st.text_area(
@@ -704,7 +741,9 @@ else:
                     criterios_generacion=criterios_para_preguntas,
                     manual_reglas_texto=manual_reglas_texto,
                     informacion_adicional_usuario=informacion_adicional_usuario,
-                    prompt_generador_adicional=prompt_generador_adicional, # Pasa el prompt adicional para el generador
+                    prompt_bloom_adicional=prompt_bloom_adicional, # Pasa el prompt adicional para Bloom
+                    prompt_construccion_adicional=prompt_construccion_adicional, # Pasa el prompt adicional para construcción
+                    prompt_especifico_adicional=prompt_especifico_adicional, # Pasa el prompt adicional para específicos
                     prompt_auditor_adicional=prompt_auditor_adicional    # Pasa el prompt adicional para el auditor
                 )
 
@@ -757,29 +796,28 @@ else:
                 st.warning("Por favor, ingresa un nombre para el archivo Word.")
 
             # Descargar Prompts Utilizados
-            if use_additional_prompts or True: # Siempre permite descargar los prompts si se generó algo, útil para ver el prompt base también
-                st.markdown("---")
-                st.subheader("Descargar Prompts Utilizados")
-                st.info("Puedes descargar un archivo TXT con los prompts completos que se enviaron a los modelos de IA para este ítem.")
-                
-                # Crear el contenido del TXT con ambos prompts
-                combined_prompts_content = (
-                    f"--- PROMPT COMPLETO ENVIADO AL GENERADOR ---\n"
-                    f"{st.session_state['last_processed_item_data'].get('generation_prompt_used', 'No disponible')}\n\n"
-                    f"--- PROMPT COMPLETO ENVIADO AL AUDITOR ---\n"
-                    f"{st.session_state['last_processed_item_data'].get('auditor_prompt_used', 'No disponible')}"
+            st.markdown("---")
+            st.subheader("Descargar Prompts Utilizados")
+            st.info("Puedes descargar un archivo TXT con los prompts completos que se enviaron a los modelos de IA para este ítem.")
+            
+            # Crear el contenido del TXT con ambos prompts
+            combined_prompts_content = (
+                f"--- PROMPT COMPLETO ENVIADO AL GENERADOR ---\n"
+                f"{st.session_state['last_processed_item_data'].get('generation_prompt_used', 'No disponible')}\n\n"
+                f"--- PROMPT COMPLETO ENVIADO AL AUDITOR ---\n"
+                f"{st.session_state['last_processed_item_data'].get('auditor_prompt_used', 'No disponible')}"
+            )
+            
+            prompt_download_filename = st.text_input("Nombre para el archivo TXT de prompts (sin .txt):", "prompts_utilizados", key="prompt_txt_filename")
+            if prompt_download_filename:
+                st.download_button(
+                    label="Descargar Prompts como TXT",
+                    data=combined_prompts_content.encode('utf-8'),
+                    file_name=f"{prompt_download_filename}.txt",
+                    mime="text/plain"
                 )
-                
-                prompt_download_filename = st.text_input("Nombre para el archivo TXT de prompts (sin .txt):", "prompts_utilizados", key="prompt_txt_filename")
-                if prompt_download_filename:
-                    st.download_button(
-                        label="Descargar Prompts como TXT",
-                        data=combined_prompts_content.encode('utf-8'),
-                        file_name=f"{prompt_download_filename}.txt",
-                        mime="text/plain"
-                    )
-                    st.info("Haz clic para descargar el archivo TXT con los prompts detallados.")
-                else:
-                    st.warning("Ingresa un nombre para el archivo de prompts.")
+                st.info("Haz clic para descargar el archivo TXT con los prompts detallados.")
+            else:
+                st.warning("Ingresa un nombre para el archivo de prompts.")
         else:
             st.info("No hay ítems procesados disponibles para exportar en este momento. Genera y audita un ítem para que esté disponible aquí.")
