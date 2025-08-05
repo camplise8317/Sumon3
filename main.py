@@ -189,7 +189,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
     Genera una pregunta educativa de opción múltiple usando el modelo de generación seleccionado
     y la itera para refinarla si la auditoría lo requiere.
     """
-    tipo_pregunta = criterios_generacion.get("tipo_pregunta", "opción múltiple con 3 opciones") 
+    tipo_pregunta = criterios_generacion.get("tipo_pregunta", "opción múltiple con 4 opciones") 
     dificultad = criterios_generacion.get("dificultad", "media")
     contexto_educativo = criterios_generacion.get("contexto_educativo", "general")
     formato_justificacion = criterios_generacion.get("formato_justificacion", """
