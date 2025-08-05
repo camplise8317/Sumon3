@@ -519,7 +519,7 @@ def exportar_a_word(preguntas_procesadas_list):
                 run = p.add_run(line)
                 run.bold = True
                 run.font.size = docx.shared.Pt(12) 
-            elif line.startswith("A.") or line.startswith("B.") or line.startswith("C."):
+            elif line.startswith("A.") or line.startswith("B.") or line.startswith("C.")or line.startswith("D."):
                 p = doc.add_paragraph(line)
                 p.paragraph_format.left_indent = docx.shared.Inches(0.5) 
             elif line.startswith("RESPUESTA CORRECTA:"):
