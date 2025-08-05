@@ -124,10 +124,10 @@ def auditar_item_con_llm(model_type, model_name, item_generado, grado, area, asi
 
     --- CRITERIOS DE AUDITORÍA ---
     1.  **Formato del Enunciado:** ¿El enunciado está formulado como pregunta clara y directa, sin ambigüedades ni errores?
-    2.  **Número de Opciones:** ¿Hay exactamente 3 opciones (A, B, C)?
+    2.  **Número de Opciones:** ¿Hay exactamente 4 opciones (A, B, C, D)?
     3.  **Respuesta Correcta Indicada:** ¿La sección 'RESPUESTA CORRECTA:' está claramente indicada y coincide con una de las opciones?
     4.  **Diseño de Justificaciones:**
-        * ¿Hay justificaciones bien diferenciadas para CADA opción (A, B, C)?
+        * ¿Hay justificaciones bien diferenciadas para CADA opción (A, B, C, D)?
         * ¿La justificación de la opción **correcta** explica el razonamiento, procedimiento o estrategia relevante (NO por descarte)?
         * ¿Las justificaciones de las opciones **incorrectas** están redactadas siguiendo el formato: “El estudiante podría escoger la opción X porque… Sin embargo, esto es incorrecto porque…”?
     5.  **Estilo y Restricciones:** ¿No se usan negaciones mal redactadas, nombres reales, marcas, lugares reales, datos personales o frases vagas como “ninguna de las anteriores” o “todas las anteriores”?
@@ -163,7 +163,7 @@ def auditar_item_con_llm(model_type, model_name, item_generado, grado, area, asi
 
     VALIDACIÓN DE CRITERIOS:
     - Formato del Enunciado: [✅ / ❌] + Comentario (si ❌)
-    - Número de Opciones (3): [✅ / ❌]
+    - Número de Opciones (4): [✅ / ❌]
     - Respuesta Correcta Indicada: [✅ / ❌]
     - Diseño de Justificaciones: [✅ / ⚠️ / ❌] + Observaciones (si ⚠️/❌)
     - Estilo y Restricciones: [✅ / ⚠️ / ❌] + Observaciones (si ⚠️/❌)
@@ -278,7 +278,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
         - Asegúrate de que el enunciado refleje el tipo de tarea cognitiva esperado según el proceso de Bloom.
 
         OPCIONES DE RESPUESTA:
-        - Escribe exactamente tres opciones (A, B y C).
+        - Escribe exactamente cuatro opciones (A, B, C  y D).
         - Solo una opción debe ser correcta.
         - Los distractores (respuestas incorrectas) deben estar bien diseñados: deben ser creíbles, funcionales y representar errores comunes o concepciones alternativas frecuentes.
         - No utilices fórmulas vagas como “ninguna de las anteriores” o “todas las anteriores”.
@@ -319,12 +319,14 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
         PREGUNTA: [Redacta aquí el enunciado de la pregunta]
         A. [Opción A]  
         B. [Opción B]  
-        C. [Opción C]  
+        C. [Opción C] 
+        D. [Opción D]                          
         RESPUESTA CORRECTA: [Letra de la opción correcta, por ejemplo: B]
         JUSTIFICACIONES:  
         A. [Explica por qué A es incorrecta o correcta]  
         B. [Explica por qué B es incorrecta o correcta]  
         C. [Explica por qué C es incorrecta o correcta]  
+        D. [Explica por qué D es incorrecta o correcta]  
         GRAFICO_NECESARIO: [SÍ/NO]
         DESCRIPCION_GRAFICO: [Descripción detallada o N/A]
         """
