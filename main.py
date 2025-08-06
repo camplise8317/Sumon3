@@ -592,7 +592,7 @@ if uploaded_pdf_file:
     st.sidebar.info(f"Manual de reglas cargado. Longitud final: {len(manual_reglas_texto)} caracteres.")
 
 # --- Lógica principal de Generación y Auditoría de Ítems ---
-st.header("Generación y Auditoría de Ítems Educativos")
+st.header("Generación y Auditoría de Ítems.")
 st.markdown("Define los criterios del ítem y utiliza modelos de IA para generarlo y validarlo.")
 
 if df_datos is None:
