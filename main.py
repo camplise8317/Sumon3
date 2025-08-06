@@ -569,7 +569,7 @@ def exportar_a_word(preguntas_procesadas_list):
     return buffer
 
 # --- Interfaz de Usuario Principal de Streamlit ---
-st.title("📚 Generador y Auditor de Ítems Educativos con IA 🧠")
+st.title("📚 Generador y Auditor de ítems para el proyecto SUMUN 🧠")
 st.markdown("Esta aplicación genera ítems de selección múltiple y audita su calidad, permitiéndote guiar a la IA con prompts adicionales.")
 
 # Sección de Carga de Archivos Global (Excel y PDF)
