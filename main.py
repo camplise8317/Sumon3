@@ -33,8 +33,6 @@ if openai_api_key:
 else:
     st.sidebar.warning("Por favor, ingresa tu API Key de OpenAI para usar modelos GPT.")
 
-
-
 # --- Funciones de Lectura de Archivos (Adaptadas para Streamlit Uploader) ---
 @st.cache_data 
 def leer_excel_cargado(uploaded_file):
@@ -113,8 +111,8 @@ def generar_texto_con_llm(model_type, model_name, prompt):
 
 # --- Función para auditar el ítem generado ---
 def auditar_item_con_llm(model_type, model_name, item_generado, grado, area, asignatura, estacion, 
-                          proceso_cognitivo, nanohabilidad, microhabilidad, 
-                          competencia_nanohabilidad, contexto_educativo, manual_reglas_texto="", descripcion_bloom="", grafico_necesario="", descripcion_grafico="", prompt_auditor_adicional=""):
+                         proceso_cognitivo, nanohabilidad, microhabilidad, 
+                         competencia_nanohabilidad, contexto_educativo, manual_reglas_texto="", descripcion_bloom="", grafico_necesario="", descripcion_grafico="", prompt_auditor_adicional=""):
     """
     Audita un ítem generado para verificar su cumplimiento con criterios específicos.
     """
@@ -186,7 +184,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                                      informacion_adicional_usuario="", 
                                      prompt_bloom_adicional="", prompt_construccion_adicional="", prompt_especifico_adicional="", 
                                      prompt_auditor_adicional="",
-                                     contexto_general_estacion=""): # Nuevo parámetro para el contexto general de la estación
+                                     contexto_general_estacion="", feedback_usuario=""): # Añade el feedback del usuario
     """
     Genera una pregunta educativa de opción múltiple usando el modelo de generación seleccionado
     y la itera para refinarla si la auditoría lo requiere.
@@ -235,6 +233,10 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
     full_generation_prompt = "" # Variable para almacenar el prompt completo del generador
     full_auditor_prompt = "" # Variable para almacenar el prompt completo del auditor
 
+    # Añade el feedback del usuario al prompt principal del generador
+    prompt_con_feedback = ""
+    if feedback_usuario:
+        prompt_con_feedback = f"--- RETROALIMENTACIÓN DE USUARIO PARA REFINAMIENTO ---\n{feedback_usuario}\n---------------------------------------------------"
 
     while auditoria_status != "✅ CUMPLE TOTALMENTE" and attempt < max_refinement_attempts:
         attempt += 1
@@ -322,7 +324,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
         A. [Opción A]  
         B. [Opción B]  
         C. [Opción C] 
-        D. [Opción D]                          
+        D. [Opción D]          
         RESPUESTA CORRECTA: [Letra de la opción correcta, por ejemplo: B]
         JUSTIFICACIONES:  
         A. [Explica por qué A es incorrecta o correcta]  
@@ -348,6 +350,9 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
             {current_item_text}
             -------------------------------
             """
+        
+        # Añade el prompt de feedback del usuario si existe
+        prompt_content_for_llm += prompt_con_feedback
         
         # Guardar el prompt completo del generador antes de enviarlo
         full_generation_prompt = prompt_content_for_llm
@@ -383,15 +388,6 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                     grafico_necesario = "NO"
                     descripcion_grafico = ""
                     st.warning("No se pudo parsear el formato de gráfico de la respuesta. Asumiendo que no requiere gráfico.")
-
-                # st.subheader(f"Ítem Generado/Refinado (Intento {attempt}):") # Comentado para no saturar si son muchos ítems
-                # st.markdown(current_item_text)
-                # if grafico_necesario == "SÍ":
-                #     st.info(f"**Gráfico Necesario:** SÍ")
-                #     st.markdown(f"**Descripción del Gráfico:**\n{descripcion_grafico}")
-                # else:
-                #     st.info("**Gráfico Necesario:** NO")
-                # st.markdown("---")
                 
             with st.spinner(f"Auditando ítem ({audit_model_type} - {audit_model_name}, Intento {attempt})..."):
                 auditoria_resultado, full_auditor_prompt = auditar_item_con_llm( # Recibe también el prompt del auditor
@@ -412,25 +408,19 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                     audit_observations = "El modelo de auditoría no pudo producir una respuesta válida."
                     break # Salir del bucle de refinamiento
 
-                # st.subheader("Resultado de Auditoría:") # Comentado
-                # st.markdown(auditoria_resultado) # Comentado
-                # st.markdown("---") # Comentado
-
-            # --- Extraer DICTAMEN FINAL de forma más robusta ---
-            dictamen_final_match = re.search(r"DICTAMEN FINAL:\s*\[(.*?)]", auditoria_resultado, re.DOTALL)
-            if dictamen_final_match:
-                auditoria_status = dictamen_final_match.group(1).strip()
-            else:
-                auditoria_status = "❌ RECHAZADO (no se pudo extraer dictamen)"
-            
-            observaciones_start = auditoria_resultado.find("OBSERVACIONES FINALES:")
-            if observaciones_start != -1:
-                audit_observations = auditoria_resultado[observaciones_start + len("OBSERVACIONES FINALES:"):].strip()
-            else:
-                audit_observations = "No se pudieron extraer observaciones específicas del auditor. Posiblemente un error de formato en la respuesta del auditor."
-            
-            # st.info(f"Dictamen extraído: {auditoria_status}. Observaciones: {audit_observations[:100]}...") # Comentado
-
+                # --- Extraer DICTAMEN FINAL de forma más robusta ---
+                dictamen_final_match = re.search(r"DICTAMEN FINAL:\s*\[(.*?)]", auditoria_resultado, re.DOTALL)
+                if dictamen_final_match:
+                    auditoria_status = dictamen_final_match.group(1).strip()
+                else:
+                    auditoria_status = "❌ RECHAZADO (no se pudo extraer dictamen)"
+                
+                observaciones_start = auditoria_resultado.find("OBSERVACIONES FINALES:")
+                if observaciones_start != -1:
+                    audit_observations = auditoria_resultado[observaciones_start + len("OBSERVACIONES FINALES:"):].strip()
+                else:
+                    audit_observations = "No se pudieron extraer observaciones específicas del auditor. Posiblemente un error de formato en la respuesta del auditor."
+                
             # Guardar los datos del ítem, incluyendo el estado final de la auditoría y observaciones
             item_final_data = {
                 "item_text": current_item_text,
@@ -440,20 +430,17 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                 "final_audit_status": auditoria_status, 
                 "final_audit_observations": audit_observations,
                 "generation_prompt_used": full_generation_prompt, # Guarda el prompt exacto usado por el generador
-                "auditor_prompt_used": full_auditor_prompt # Guarda el prompt exacto usado por el auditor
+                "auditor_prompt_used": full_auditor_prompt
             }
 
             if auditoria_status == "✅ CUMPLE TOTALMENTE":
-                # st.success(f"¡El ítem ha sido auditado y CUMPLE TOTALMENTE en el intento {attempt}!") # Comentado
                 break # Sale del ciclo de refinamiento si es aprobado
             else:
-                # st.warning(f"El ítem necesita refinamiento. Dictamen: {auditoria_status}. Intentando de nuevo...") # Comentado
                 pass # Solo se registra el estado, no se muestra advertencia por cada intento en bucle masivo
 
         except Exception as e:
-            # st.error(f"Error durante la generación o auditoría (intento {attempt}): {e}") # Comentado
             audit_observations = f"Error técnico durante la generación: {e}. Por favor, corrige este problema."
-            auditoria_status = "❌ RECHAZADO (error técnico)"    
+            auditoria_status = "❌ RECHAZADO (error técnico)"  
             item_final_data = {
                 "item_text": current_item_text if current_item_text else "No se pudo generar el ítem debido a un error técnico.",
                 "classification": classification_details,
@@ -466,8 +453,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
             }
             break # Salir del ciclo si hay un error técnico grave
 
-    if item_final_data is None:    
-        # st.error(f"No se pudo generar ningún ítem después de {max_refinement_attempts} intentos debido a fallas en la generación/auditoría.") # Comentado
+    if item_final_data is None:  
         return None # Retorna None si no se logró generar nada en absoluto.
 
     return item_final_data # Retorna el diccionario del ítem procesado
@@ -783,13 +769,13 @@ else:
                 st.info("Iniciando generación y auditoría del(los) ítem(s). Esto puede tardar unos momentos...")
 
                 criterios_para_preguntas = {
-                    "tipo_pregunta": "opción múltiple con 3 opciones",    
+                    "tipo_pregunta": "opción múltiple con 4 opciones",  
                     "dificultad": "media", 
-                    "num_preguntas": 1,    
+                    "num_preguntas": 1,   
                     "contexto_educativo": "estudiantes de preparatoria (bachillerato)", 
                     "formato_justificacion": """
-                        • Justificación correcta: debe explicar el razonamiento o proceso cognitivo (NO por descarte).
-                        • Justificaciones incorrectas: deben redactarse como: “El estudiante podría escoger la opción X porque… Sin embargo, esto es incorrecto porque…”
+                         • Justificación correcta: debe explicar el razonamiento o proceso cognitivo (NO por descarte).
+                         • Justificaciones incorrectas: deben redactarse como: “El estudiante podría escoger la opción X porque… Sin embargo, esto es incorrecto porque…”
                     """
                 }
                 
@@ -829,7 +815,7 @@ else:
 
                             item_data = generar_pregunta_con_seleccion(
                                 gen_model_type, gen_model_name, audit_model_type, audit_model_name, 
-                                fila_datos=current_fila_datos,    
+                                fila_datos=current_fila_datos,   
                                 criterios_generacion=criterios_para_preguntas,
                                 manual_reglas_texto=manual_reglas_texto,
                                 informacion_adicional_usuario=informacion_adicional_usuario,
@@ -846,12 +832,17 @@ else:
                         progress_bar_text.text("Todos los ítems han sido procesados.")
                         progress_bar.progress(1.0)
                         st.success(f"Se han procesado {len(processed_items_list)} ítems para la estación '{estacion_seleccionada}'.")
-
+                        
+                        # Guardar la lista completa para su posterior revisión
+                        st.session_state['processed_items_list_for_review'] = processed_items_list
+                        if processed_items_list:
+                            st.session_state['current_review_index'] = 0
+                            st.session_state['awaiting_review'] = True
                 else: # Generación de un solo ítem
                     st.subheader(f"Generando ítem individual para: {proceso_cognitivo_seleccionado} - {nanohabilidad_seleccionada}")
                     item_data = generar_pregunta_con_seleccion(
                         gen_model_type, gen_model_name, audit_model_type, audit_model_name, 
-                        fila_datos=df_item_seleccionado.iloc[0],    
+                        fila_datos=df_item_seleccionado.iloc[0],   
                         criterios_generacion=criterios_para_preguntas,
                         manual_reglas_texto=manual_reglas_texto,
                         informacion_adicional_usuario=informacion_adicional_usuario,
@@ -862,72 +853,148 @@ else:
                         contexto_general_estacion="" # No hay contexto de estación si es ítem individual
                     )
                     if item_data:
-                        processed_items_list.append(item_data)
-                        st.success(f"Ítem generado y auditado. Dictamen final: {item_data.get('final_audit_status')}")
+                        st.session_state['processed_items_list_for_review'] = [item_data]
+                        st.session_state['current_review_index'] = 0
+                        st.session_state['awaiting_review'] = True
+                    else:
+                        st.error("No se pudo generar el ítem bajo las condiciones seleccionadas.")
 
-                st.session_state['processed_items_list'] = processed_items_list # Guardar la lista completa
+# --- Lógica para mostrar la interfaz de revisión ---
+if 'awaiting_review' in st.session_state and st.session_state['awaiting_review']:
+    
+    if 'approved_items' not in st.session_state:
+        st.session_state['approved_items'] = []
+    
+    current_index = st.session_state.get('current_review_index', 0)
+    items_to_review = st.session_state.get('processed_items_list_for_review', [])
+    
+    if current_index >= len(items_to_review):
+        st.success("¡Has revisado todos los ítems! Ahora puedes descargarlos en la sección de 'Exportar Resultados'.")
+        st.session_state['awaiting_review'] = False
+        st.session_state['current_review_index'] = 0
+        del st.session_state['processed_items_list_for_review']
+        st.experimental_rerun()
+        
+    item_to_review = items_to_review[current_index]
 
-                # Mostrar el primer ítem procesado como ejemplo rápido (o un resumen)
-                if processed_items_list:
-                    st.subheader("Resumen del Primer Ítem Procesado:")
-                    first_item_data = processed_items_list[0]
-                    st.markdown(first_item_data['item_text'])
-                    st.write(f"**Dictamen Final:** {first_item_data['final_audit_status']}")
-                    st.write(f"**Observaciones:** {first_item_data['final_audit_observations'][:150]}...") # Mostrar un fragmento
-                    st.markdown("---")
-                else:
-                    st.error("No se pudo generar ningún ítem bajo las condiciones seleccionadas.")
+    st.markdown("---")
+    st.header(f"Revisión de Ítem ({current_index + 1} de {len(items_to_review)})")
+    st.info(f"Dictamen de la Auditoría Inicial: **{item_to_review['final_audit_status']}**")
+    
+    st.markdown("---")
+    st.markdown("### Ítem Generado:")
+    st.markdown(item_to_review['item_text'])
+    
+    st.markdown("---")
+    st.markdown("### Observaciones de la Auditoría:")
+    st.markdown(item_to_review['final_audit_observations'])
+    
+    col_aprob, col_rechazo = st.columns(2)
 
+    with col_aprob:
+        if st.button("✅ Aprobar y Siguiente"):
+            st.session_state['approved_items'].append(item_to_review)
+            st.session_state['current_review_index'] += 1
+            st.experimental_rerun()
 
-        # --- Sección de Exportación a Word y descarga de Prompts (siempre visible al final de esta sección) ---
-        st.header("Exportar Resultados")
-
-        if 'processed_items_list' in st.session_state and st.session_state['processed_items_list']:
-            num_items_processed = len(st.session_state['processed_items_list'])
-            st.write(f"Hay **{num_items_processed}** ítem(s) procesado(s) disponible(s) para exportar.")
+    with col_rechazo:
+        if st.button("❌ Rechazar y Reintentar"):
+            st.session_state['show_feedback_form'] = True
             
-            # Exportar a Word
-            nombre_archivo_word = st.text_input("Ingresa el nombre deseado para el archivo Word (sin la extensión .docx):", 
-                                                f"items_{estacion_seleccionada.replace(' ', '_')}_{grado_seleccionado}", 
-                                                key="word_filename")
-            if nombre_archivo_word:
-                word_buffer = exportar_a_word(st.session_state['processed_items_list'])
-                st.download_button(
-                    label="Descargar Ítem(s) en Documento Word",
-                    data=word_buffer,
-                    file_name=f"{nombre_archivo_word}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-                st.info("Haz clic para descargar el archivo Word con el(los) ítem(s) y su(s) auditoría(s).")
+    if st.session_state.get('show_feedback_form', False):
+        st.markdown("---")
+        st.markdown("#### Por favor, proporciona tus observaciones para refinar el ítem:")
+        
+        feedback_enunciado = st.text_area("1. Observaciones del enunciado/contexto:", key="feedback_enunciado")
+        feedback_opciones = st.text_area("2. Observaciones de las opciones de respuesta:", key="feedback_opciones")
+        
+        # Aquí construimos el prompt de feedback completo
+        feedback_completo = ""
+        if feedback_enunciado:
+            feedback_completo += f"Observaciones sobre el enunciado/contexto: {feedback_enunciado}\n"
+        if feedback_opciones:
+            feedback_completo += f"Observaciones sobre las opciones de respuesta: {feedback_opciones}\n"
+
+        if st.button("🔄 Refinar con estas Observaciones"):
+            st.info("Re-generando el ítem con tu feedback...")
+            
+            # Recuperar la fila de datos original
+            original_fila_datos = item_to_review['classification']
+            
+            # Volver a llamar a la función de generación con el feedback del usuario
+            refined_item_data = generar_pregunta_con_seleccion(
+                gen_model_type, gen_model_name, audit_model_type, audit_model_name,
+                fila_datos=original_fila_datos,
+                criterios_generacion={"tipo_pregunta": "opción múltiple con 4 opciones", "dificultad": "media", "num_preguntas": 1, "contexto_educativo": "estudiantes de preparatoria (bachillerato)"},
+                manual_reglas_texto=manual_reglas_texto,
+                informacion_adicional_usuario=informacion_adicional_usuario,
+                prompt_bloom_adicional=prompt_bloom_adicional,
+                prompt_construccion_adicional=prompt_construccion_adicional,
+                prompt_especifico_adicional=prompt_especifico_adicional,
+                prompt_auditor_adicional=prompt_auditor_adicional,
+                contexto_general_estacion=contexto_general_estacion,
+                feedback_usuario=feedback_completo # Pasar el feedback al generador
+            )
+            
+            if refined_item_data:
+                # Reemplazar el ítem actual con el refinado
+                st.session_state['processed_items_list_for_review'][current_index] = refined_item_data
+                st.session_state['show_feedback_form'] = False
+                st.success("¡Ítem refinado exitosamente! Por favor, revísalo de nuevo.")
+                st.experimental_rerun()
             else:
-                st.warning("Por favor, ingresa un nombre para el archivo Word.")
+                st.error("Fallo al refinar el ítem. Intenta de nuevo o ajusta tu feedback.")
 
-            # Descargar Prompts Utilizados
-            st.markdown("---")
-            st.subheader("Descargar Prompts Utilizados")
-            st.info("Puedes descargar un archivo TXT con los prompts completos que se enviaron a los modelos de IA para este(os) ítem(s).")
-            
-            # Construir el contenido del TXT con ambos prompts para todos los ítems
-            combined_prompts_content = ""
-            for i, item_data in enumerate(st.session_state['processed_items_list']):
-                combined_prompts_content += f"--- PROMPT DETALLADO PARA ÍTEM #{i+1} ---\n"
-                combined_prompts_content += f"**Clasificación:** Grado: {item_data['classification']['Grado']}, Área: {item_data['classification']['Área']}, Asignatura: {item_data['classification']['Asignatura']}, Estación: {item_data['classification']['Estación']}, Proceso Cognitivo: {item_data['classification']['Proceso Cognitivo']}, Nanohabilidad: {item_data['classification']['Nanohabilidad']}\n\n"
-                combined_prompts_content += f"--- PROMPT COMPLETO ENVIADO AL GENERADOR ---\n"
-                combined_prompts_content += f"{item_data.get('generation_prompt_used', 'No disponible')}\n\n"
-                combined_prompts_content += f"--- PROMPT COMPLETO ENVIADO AL AUDITOR ---\n"
-                combined_prompts_content += f"{item_data.get('auditor_prompt_used', 'No disponible')}\n\n"
-                combined_prompts_content += "="*80 + "\n\n" # Separador entre prompts de ítems
-            
-            prompt_download_filename = st.text_input("Nombre para el archivo TXT de prompts (sin .txt):", f"prompts_{estacion_seleccionada.replace(' ', '_')}", key="prompt_txt_filename")
-            if prompt_download_filename:
-                st.download_button(
-                    label="Descargar Prompts como TXT",
-                    data=combined_prompts_content.encode('utf-8'),
-                    file_name=f"{prompt_download_filename}.txt",
-                    mime="text/plain"
-                )
-                st.info("Haz clic para descargar el archivo TXT con los prompts detallados de todos los ítems.")
-            else:
-                st.warning("Ingresa un nombre para el archivo de prompts.")
-        else:
-            st.info("No hay ítems procesados disponibles para exportar en este momento. Genera y audita ítem(s) para que estén disponibles aquí.")
+
+# --- Sección de Exportación a Word y descarga de Prompts (siempre visible al final de esta sección) ---
+st.header("Exportar Resultados")
+
+if 'approved_items' in st.session_state and st.session_state['approved_items']:
+    num_items_processed = len(st.session_state['approved_items'])
+    st.write(f"Hay **{num_items_processed}** ítem(s) aprobado(s) y disponible(s) para exportar.")
+    
+    # Exportar a Word
+    nombre_archivo_word = st.text_input("Ingresa el nombre deseado para el archivo Word (sin la extensión .docx):", 
+                                        f"items_{estacion_seleccionada.replace(' ', '_')}_{grado_seleccionado}", 
+                                        key="word_filename")
+    if nombre_archivo_word:
+        word_buffer = exportar_a_word(st.session_state['approved_items'])
+        st.download_button(
+            label="Descargar Ítem(s) en Documento Word",
+            data=word_buffer,
+            file_name=f"{nombre_archivo_word}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        st.info("Haz clic para descargar el archivo Word con el(los) ítem(s) y su(s) auditoría(s).")
+    else:
+        st.warning("Por favor, ingresa un nombre para el archivo Word.")
+
+    # Descargar Prompts Utilizados
+    st.markdown("---")
+    st.subheader("Descargar Prompts Utilizados")
+    st.info("Puedes descargar un archivo TXT con los prompts completos que se enviaron a los modelos de IA para este(os) ítem(s).")
+    
+    # Construir el contenido del TXT con ambos prompts para todos los ítems
+    combined_prompts_content = ""
+    for i, item_data in enumerate(st.session_state['approved_items']):
+        combined_prompts_content += f"--- PROMPT DETALLADO PARA ÍTEM #{i+1} ---\n"
+        combined_prompts_content += f"**Clasificación:** Grado: {item_data['classification']['Grado']}, Área: {item_data['classification']['Área']}, Asignatura: {item_data['classification']['Asignatura']}, Estación: {item_data['classification']['Estación']}, Proceso Cognitivo: {item_data['classification']['Proceso Cognitivo']}, Nanohabilidad: {item_data['classification']['Nanohabilidad']}\n\n"
+        combined_prompts_content += f"--- PROMPT COMPLETO ENVIADO AL GENERADOR ---\n"
+        combined_prompts_content += f"{item_data.get('generation_prompt_used', 'No disponible')}\n\n"
+        combined_prompts_content += f"--- PROMPT COMPLETO ENVIADO AL AUDITOR ---\n"
+        combined_prompts_content += f"{item_data.get('auditor_prompt_used', 'No disponible')}\n\n"
+        combined_prompts_content += "="*80 + "\n\n" # Separador entre prompts de ítems
+    
+    prompt_download_filename = st.text_input("Nombre para el archivo TXT de prompts (sin .txt):", f"prompts_{estacion_seleccionada.replace(' ', '_')}", key="prompt_txt_filename")
+    if prompt_download_filename:
+        st.download_button(
+            label="Descargar Prompts como TXT",
+            data=combined_prompts_content.encode('utf-8'),
+            file_name=f"{prompt_download_filename}.txt",
+            mime="text/plain"
+        )
+        st.info("Haz clic para descargar el archivo TXT con los prompts detallados de todos los ítems.")
+    else:
+        st.warning("Ingresa un nombre para el archivo de prompts.")
+else:
+    st.info("No hay ítems aprobados disponibles para exportar en este momento. Genera y audita ítem(s) para que estén disponibles aquí.")
