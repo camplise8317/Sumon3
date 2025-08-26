@@ -16,7 +16,7 @@ openai_api_key = st.sidebar.text_input("API Key de OpenAI (para modelos GPT)", t
 gemini_config_ok = False
 openai_config_ok = False
 
-if gemini_api_key:
+if _api_key:
     try:
         genai.configure(api_key=gemini_api_key)
         gemini_config_ok = True
@@ -755,7 +755,7 @@ else:
             gen_model_type = st.radio("Tipo de Modelo (Generación)", ["Gemini", "GPT"], key="gen_model_type", index=0 if gemini_config_ok else 1) 
             gen_model_name = ""
             if gen_model_type == "Gemini":
-                gen_model_name = st.selectbox("Nombre del Modelo Gemini (Generación)", ["gemini-1.5-flash", "gemini-1.5-pro"], key="gen_gemini_name")
+                gen_model_name = st.selectbox("Nombre del Modelo Gemini (Generación)", ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"], key="gen_gemini_name")
             else: 
                 gen_model_name = st.selectbox("Nombre del Modelo GPT (Generación)", ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"], key="gen_gpt_name")
         
@@ -764,7 +764,7 @@ else:
             audit_model_type = st.radio("Tipo de Modelo (Auditoría)", ["Gemini", "GPT"], key="audit_model_type", index=0 if gemini_config_ok else 1)
             audit_model_name = ""
             if audit_model_type == "Gemini":
-                audit_model_name = st.selectbox("Nombre del Modelo Gemini (Auditoría)", ["gemini-1.5-flash", "gemini-1.5-pro"], key="audit_gemini_name")
+                audit_model_name = st.selectbox("Nombre del Modelo Gemini (Auditoría)", ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"], key="audit_gemini_name")
             else: 
                 audit_model_name = st.selectbox("Nombre del Modelo GPT (Auditoría)", ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"], key="audit_gpt_name")
 
