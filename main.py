@@ -184,7 +184,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                                      informacion_adicional_usuario="", 
                                      prompt_bloom_adicional="", prompt_construccion_adicional="", prompt_especifico_adicional="", 
                                      prompt_auditor_adicional="",
-                                     contexto_general_estacion="", feedback_usuario="", item_a_refinar_text=""): # Añade el feedback del usuario y el texto del ítem
+                                     contexto_general_estacion="", feedback_usuario="", item_a_refinar_text=""):
     """
     Genera una pregunta educativa de opción múltiple usando el modelo de generación seleccionado
     y la itera para refinarla si la auditoría lo requiere.
@@ -233,9 +233,10 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
     full_generation_prompt = "" # Variable para almacenar el prompt completo del generador
     full_auditor_prompt = "" # Variable para almacenar el prompt completo del auditor
 
-    # Lógica para refinar un ítem existente si hay feedback del usuario
+    # --- Lógica principal de generación o refinamiento ---
+    
+    # 1. Si hay feedback del usuario, prioriza el refinamiento
     if feedback_usuario and item_a_refinar_text:
-        # Construye un prompt específico para la tarea de refinamiento
         prompt_refinamiento = f"""
         --- TAREA DE REFINAMIENTO ---
         Eres un experto en ítems de evaluación. Tu tarea es REFINAR el siguiente ítem, corrigiendo o ajustando el texto para abordar las observaciones del usuario. No lo reescribas completamente; solo haz las correcciones necesarias.
@@ -316,227 +317,242 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                 "descripcion_grafico": descripcion_grafico,
                 "final_audit_status": auditoria_status, 
                 "final_audit_observations": audit_observations,
-                "generation_prompt_used": prompt_refinamiento, # Guarda el prompt exacto usado para refinar
+                "generation_prompt_used": prompt_refinamiento, 
                 "auditor_prompt_used": full_auditor_prompt
             }
             return item_final_data
-
-    # Lógica de generación ORIGINAL para el primer intento (cuando no hay feedback)
-    while auditoria_status != "✅ CUMPLE TOTALMENTE" and attempt < max_refinement_attempts:
-        attempt += 1
         
-        prompt_content_for_llm = f"""
-        Eres un diseñador experto en ítems de evaluación educativa, especializado en pruebas tipo ICFES u otras de alta calidad técnica.
-
-        Tu tarea es construir un ítem de {tipo_pregunta} con una única respuesta correcta, cumpliendo rigurosamente las reglas de construcción de ítems y alineado con el marco cognitivo de la Taxonomía de Bloom.
-
-        --- CONTEXTO Y PARÁMETROS DEL ÍTEM ---
-        - Grado: {grado_elegido}
-        - Área: {area_elegida}
-        - Asignatura: {asignatura_elegida}
-        - Estación o unidad temática: {estacion_elegida}
-        - Proceso cognitivo (Taxonomía de Bloom): {proceso_cognitivo_elegido}
-        - Descripción del proceso cognitivo:
-          "{descripcion_bloom}"
-        
-        --- PROMPT ADICIONAL: TAXONOMÍA DE BLOOM / PROCESOS COGNITIVOS ---
-        {prompt_bloom_adicional if prompt_bloom_adicional else "No se proporcionaron prompts adicionales específicos para taxonomía de Bloom."}
-        ------------------------------------------------------------------
-
-        - Nanohabilidad (foco principal del ítem): {nanohabilidad_elegida}
-        - Nivel educativo esperado del estudiante: {contexto_educativo}
-        - Nivel de dificultad deseado: {dificultad}
-
-        --- CONTEXTO GENERAL DE LA ESTACIÓN (si aplica) ---
-        {f"Considera este contexto general para todos los ítems de esta estación: {contexto_general_estacion}" if contexto_general_estacion else "Este ítem debe generar su propio contexto individual, o no se ha definido un contexto general para la estación."}
-        ----------------------------------------------------
-
-        --- INSTRUCCIONES PARA LA CONSTRUCCIÓN DEL ÍTEM ---
-        CONTEXTO DEL ÍTEM:
-        - Incluye una situación contextualizada, relevante y plausible para el grado y área indicada.
-        - La temática debe ser la de la {estacion_elegida}, y esto debe ser central, no una mera contextualización.
-        - Debe garantizarse que el proceso cognitivo corresponde fielmente a la descripción de la taxonomia de Bloom.
-        - Evita referencias a marcas, nombres propios, lugares reales o información personal identificable.
-
-        ENUNCIADO:
-        - Formula una pregunta clara, directa, sin ambigüedades ni tecnicismos innecesarios.
-        - Si utilizas negaciones, resáltalas en MAYÚSCULAS Y NEGRITA (por ejemplo: **NO ES**, **EXCEPTO**).
-        - Asegúrate de que el enunciado refleje el tipo de tarea cognitiva esperado según el proceso de Bloom.
-
-        OPCIONES DE RESPUESTA:
-        - Escribe exactamente cuatro opciones (A, B, C  y D).
-        - Solo una opción debe ser correcta.
-        - Los distractores (respuestas incorrectas) deben estar bien diseñados: deben ser creíbles, funcionales y representar errores comunes o concepciones alternativas frecuentes.
-        - No utilices fórmulas vagas como “ninguna de las anteriores” o “todas las anteriores”.
-
-        JUSTIFICACIONES:
-        {formato_justificacion}
-
-        --- PROMPT ADICIONAL: REGLAS GENERALES DE CONSTRUCCIÓN ---
-        {prompt_construccion_adicional if prompt_construccion_adicional else "No se proporcionaron prompts adicionales específicos para reglas generales de construcción."}
-        ---------------------------------------------------------
-
-        --- REGLAS ADICIONALES DEL MANUAL DE CONSTRUCCIÓN ---
-        Considera y aplica estrictamente todas las directrices, ejemplos y restricciones contenidas en el siguiente manual.
-        Esto es de suma importancia para la calidad y pertinencia del ítem.
-
-        Manual de Reglas:
-        {manual_reglas_texto}
-        ----------------------------------------------------
-
-        --- INFORMACIÓN ADICIONAL PROPORCIONADA POR EL USUARIO (Contexto General) ---
-        {informacion_adicional_usuario if informacion_adicional_usuario else "No se proporcionó información adicional general."}
-        ---------------------------------------------------------------------------
-        
-        --- PROMPT ADICIONAL: COSAS ESPECÍFICAS A TENER EN CUENTA ---
-        {prompt_especifico_adicional if prompt_especifico_adicional else "No se proporcionaron prompts adicionales específicos para consideraciones adicionales."}
-        ----------------------------------------------------------
-
-        --- DATO CLAVE PARA LA CONSTRUCCIÓN ---
-        Basado en el foco temático y el proceso cognitivo, considera el siguiente dato o idea esencial:
-        "{dato_para_pregunta_foco}"
-
-        --- INSTRUCCIONES ESPECÍFICAS DE SALIDA PARA GRÁFICO ---
-        Después del bloque de JUSTIFICACIONES, incluye la siguiente información para indicar si el ítem necesita un gráfico y cómo sería:
-        GRAFICO_NECESARIO: [SÍ/NO]
-        DESCRIPCION_GRAFICO: [Si GRAFICO_NECESARIO es SÍ, proporciona una descripción MUY DETALLADA del gráfico. Incluye: tipo de gráfico (ej. barras, líneas, circular, diagrama de flujo, imagen de un objeto), datos o rangos de valores, etiquetas de ejes, elementos clave, propósito del gráfico y cómo se relaciona con la pregunta. Si es NO, escribe N/A.]
-
-        --- FORMATO ESPERADO DE SALIDA ---
-        PREGUNTA: [Redacta aquí el enunciado de la pregunta]
-        A. [Opción A]  
-        B. [Opción B]  
-        C. [Opción C] 
-        D. [Opción D]          
-        RESPUESTA CORRECTA: [Letra de la opción correcta, por ejemplo: B]
-        JUSTIFICACIONES:  
-        A. [Explica por qué A es incorrecta o correcta]  
-        B. [Explica por qué B es incorrecta o correcta]  
-        C. [Explica por qué C es incorrecta o correcta]  
-        D. [Explica por qué D es incorrecta o correcta]  
-        GRAFICO_NECESARIO: [SÍ/NO]
-        DESCRIPCION_GRAFICO: [Descripción detallada o N/A]
-        """
-        
-        # Si no es el primer intento, añade las observaciones de auditoría para refinamiento
-        if attempt > 1:
-            prompt_content_for_llm += f"""
-            --- RETROALIMENTACIÓN DE AUDITORÍA PARA REFINAMIENTO ---
-            El ítem anterior no cumplió con todos los criterios. Por favor, revisa las siguientes observaciones y mejora el ítem para abordarlas.
-            Observaciones del Auditor:
-            {audit_observations}
-            ---------------------------------------------------
-            """
-            # Agrega el ítem anterior para que el LLM lo pueda reformular
-            prompt_content_for_llm += f"""
-            --- ÍTEM ANTERIOR A REFINAR ---
-            {current_item_text}
-            -------------------------------
-            """
-        
-        # Añade el prompt de feedback del usuario si existe
-        prompt_content_for_llm += prompt_con_feedback
-        
-        # Guardar el prompt completo del generador antes de enviarlo
-        full_generation_prompt = prompt_content_for_llm
-
-        try:
-            with st.spinner(f"Generando contenido con IA ({gen_model_type} - {gen_model_name}, Intento {attempt})..."):
-                full_llm_response = generar_texto_con_llm(gen_model_type, gen_model_name, prompt_content_for_llm)
-                
-                if full_llm_response is None: # Si hubo un error en la generación con LLM
-                    auditoria_status = "❌ RECHAZADO (Error de Generación)"
-                    audit_observations = "El modelo de generación no pudo producir una respuesta válida."
-                    break # Salir del bucle de refinamiento
-                    
-                # --- Parsear la respuesta para extraer el ítem y la información del gráfico ---
-                item_and_graphic_match = re.search(r"(PREGUNTA:.*?)(GRAFICO_NECESARIO:\s*(SÍ|NO).*?DESCRIPCION_GRAFICO:.*)", full_llm_response, re.DOTALL)
-                
-                if item_and_graphic_match:
-                    current_item_text = item_and_graphic_match.group(1).strip()
-                    grafico_info_block = item_and_graphic_match.group(2).strip()
-                    
-                    grafico_necesario_match = re.search(r"GRAFICO_NECESARIO:\s*(SÍ|NO)", grafico_info_block)
-                    if grafico_necesario_match:
-                        grafico_necesario = grafico_necesario_match.group(1).strip()
-
-                    descripcion_grafico_match = re.search(r"DESCRIPCION_GRAFICO:\s*(.*)", grafico_info_block, re.DOTALL)
-                    if descripcion_grafico_match:
-                        descripcion_grafico = descripcion_grafico_match.group(1).strip()
-                        if descripcion_grafico.upper() == 'N/A':
-                            descripcion_grafico = ""
-                else:
-                    current_item_text = full_llm_response
-                    grafico_necesario = "NO"
-                    descripcion_grafico = ""
-                    st.warning("No se pudo parsear el formato de gráfico de la respuesta. Asumiendo que no requiere gráfico.")
-                
-            with st.spinner(f"Auditando ítem ({audit_model_type} - {audit_model_name}, Intento {attempt})..."):
-                auditoria_resultado, full_auditor_prompt = auditar_item_con_llm( # Recibe también el prompt del auditor
-                    audit_model_type, audit_model_name,
-                    item_generado=current_item_text,
-                    grado=grado_elegido, area=area_elegida, asignatura=asignatura_seleccionada, estacion=estacion_elegida,
-                    proceso_cognitivo=proceso_cognitivo_seleccionado, nanohabilidad=nanohabilidad_seleccionada,
-                    microhabilidad=microhabilidad_elegida, competencia_nanohabilidad=competencia_nanohabilidad_elegida,
-                    contexto_educativo=contexto_educativo, manual_reglas_texto=manual_reglas_texto,
-                    descripcion_bloom=descripcion_bloom,
-                    grafico_necesario=grafico_necesario,
-                    descripcion_grafico=descripcion_grafico,
-                    prompt_auditor_adicional=prompt_auditor_adicional # Pasa el prompt adicional del auditor
-                )
-                if auditoria_resultado is None: # Si hubo un error en la auditoría con LLM
-                    auditoria_status = "❌ RECHAZADO (Error de Auditoría)"
-                    audit_observations = "El modelo de auditoría no pudo producir una respuesta válida."
-                    break # Salir del bucle de refinamiento
-
-                # --- Extraer DICTAMEN FINAL de forma más robusta ---
-                dictamen_final_match = re.search(r"DICTAMEN FINAL:\s*\[(.*?)]", auditoria_resultado, re.DOTALL)
-                if dictamen_final_match:
-                    auditoria_status = dictamen_final_match.group(1).strip()
-                else:
-                    auditoria_status = "❌ RECHAZADO (no se pudo extraer dictamen)"
-                
-                observaciones_start = auditoria_resultado.find("OBSERVACIONES FINALES:")
-                if observaciones_start != -1:
-                    audit_observations = auditoria_resultado[observaciones_start + len("OBSERVACIONES FINALES:"):].strip()
-                else:
-                    audit_observations = "No se pudieron extraer observaciones específicas del auditor. Posiblemente un error de formato en la respuesta del auditor."
-                
-            # Guardar los datos del ítem, incluyendo el estado final de la auditoría y observaciones
-            item_final_data = {
-                "item_text": current_item_text,
-                "classification": classification_details,
-                "grafico_necesario": grafico_necesario,
-                "descripcion_grafico": descripcion_grafico,
-                "final_audit_status": auditoria_status, 
-                "final_audit_observations": audit_observations,
-                "generation_prompt_used": full_generation_prompt, # Guarda el prompt exacto usado por el generador
-                "auditor_prompt_used": full_auditor_prompt
-            }
-
-            if auditoria_status == "✅ CUMPLE TOTALMENTE":
-                break # Sale del ciclo de refinamiento si es aprobado
-            else:
-                pass # Solo se registra el estado, no se muestra advertencia por cada intento en bucle masivo
-
         except Exception as e:
-            audit_observations = f"Error técnico durante la generación: {e}. Por favor, corrige este problema."
+            audit_observations = f"Error técnico durante la refinación: {e}. Por favor, corrige este problema."
             auditoria_status = "❌ RECHAZADO (error técnico)"  
             item_final_data = {
-                "item_text": current_item_text if current_item_text else "No se pudo generar el ítem debido a un error técnico.",
+                "item_text": current_item_text if current_item_text else "No se pudo refinar el ítem debido a un error técnico.",
                 "classification": classification_details,
                 "grafico_necesario": "NO",
                 "descripcion_grafico": "",
                 "final_audit_status": auditoria_status,
                 "final_audit_observations": audit_observations,
-                "generation_prompt_used": full_generation_prompt,
+                "generation_prompt_used": prompt_refinamiento,
                 "auditor_prompt_used": full_auditor_prompt
             }
-            break # Salir del ciclo si hay un error técnico grave
+            return item_final_data
 
-    if item_final_data is None:  
-        return None # Retorna None si no se logró generar nada en absoluto.
+    # 2. Si no hay feedback, sigue el proceso normal de generación
+    else: 
+        prompt_con_feedback = f"--- RETROALIMENTACIÓN DE USUARIO PARA REFINAMIENTO ---\n{feedback_usuario}\n---------------------------------------------------"
+        
+        while auditoria_status != "✅ CUMPLE TOTALMENTE" and attempt < max_refinement_attempts:
+            attempt += 1
+            
+            prompt_content_for_llm = f"""
+            Eres un diseñador experto en ítems de evaluación educativa, especializado en pruebas tipo ICFES u otras de alta calidad técnica.
 
-    return item_final_data # Retorna el diccionario del ítem procesado
+            Tu tarea es construir un ítem de {tipo_pregunta} con una única respuesta correcta, cumpliendo rigurosamente las reglas de construcción de ítems y alineado con el marco cognitivo de la Taxonomía de Bloom.
+            
+            --- CONTEXTO Y PARÁMETROS DEL ÍTEM ---
+            - Grado: {grado_elegido}
+            - Área: {area_elegida}
+            - Asignatura: {asignatura_elegida}
+            - Estación o unidad temática: {estacion_elegida}
+            - Proceso cognitivo (Taxonomía de Bloom): {proceso_cognitivo_elegido}
+            - Descripción del proceso cognitivo:
+              "{descripcion_bloom}"
+            
+            --- PROMPT ADICIONAL: TAXONOMÍA DE BLOOM / PROCESOS COGNITIVOS ---
+            {prompt_bloom_adicional if prompt_bloom_adicional else "No se proporcionaron prompts adicionales específicos para taxonomía de Bloom."}
+            ------------------------------------------------------------------
+
+            - Nanohabilidad (foco principal del ítem): {nanohabilidad_elegida}
+            - Nivel educativo esperado del estudiante: {contexto_educativo}
+            - Nivel de dificultad deseado: {dificultad}
+
+            --- CONTEXTO GENERAL DE LA ESTACIÓN (si aplica) ---
+            {f"Considera este contexto general para todos los ítems de esta estación: {contexto_general_estacion}" if contexto_general_estacion else "Este ítem debe generar su propio contexto individual, o no se ha definido un contexto general para la estación."}
+            ----------------------------------------------------
+
+            --- INSTRUCCIONES PARA LA CONSTRUCCIÓN DEL ÍTEM ---
+            CONTEXTO DEL ÍTEM:
+            - Incluye una situación contextualizada, relevante y plausible para el grado y área indicada.
+            - La temática debe ser la de la {estacion_elegida}, y esto debe ser central, no una mera contextualización.
+            - Debe garantizarse que el proceso cognitivo corresponde fielmente a la descripción de la taxonomia de Bloom.
+            - Evita referencias a marcas, nombres propios, lugares reales o información personal identificable.
+
+            ENUNCIADO:
+            - Formula una pregunta clara, directa, sin ambigüedades ni tecnicismos innecesarios.
+            - Si utilizas negaciones, resáltalas en MAYÚSCULAS Y NEGRITA (por ejemplo: **NO ES**, **EXCEPTO**).
+            - Asegúrate de que el enunciado refleje el tipo de tarea cognitiva esperado según el proceso de Bloom.
+
+            OPCIONES DE RESPUESTA:
+            - Escribe exactamente cuatro opciones (A, B, C  y D).
+            - Solo una opción debe ser correcta.
+            - Los distractores (respuestas incorrectas) deben estar bien diseñados: deben ser creíbles, funcionales y representar errores comunes o concepciones alternativas frecuentes.
+            - No utilices fórmulas vagas como “ninguna de las anteriores” o “todas las anteriores”.
+
+            JUSTIFICACIONES:
+            {formato_justificacion}
+
+            --- PROMPT ADICIONAL: REGLAS GENERALES DE CONSTRUCCIÓN ---
+            {prompt_construccion_adicional if prompt_construccion_adicional else "No se proporcionaron prompts adicionales específicos para reglas generales de construcción."}
+            ---------------------------------------------------------
+
+            --- REGLAS ADICIONALES DEL MANUAL DE CONSTRUCCIÓN ---
+            Considera y aplica estrictamente todas las directrices, ejemplos y restricciones contenidas en el siguiente manual.
+            Esto es de suma importancia para la calidad y pertinencia del ítem.
+
+            Manual de Reglas:
+            {manual_reglas_texto}
+            ----------------------------------------------------
+
+            --- INFORMACIÓN ADICIONAL PROPORCIONADA POR EL USUARIO (Contexto General) ---
+            {informacion_adicional_usuario if informacion_adicional_usuario else "No se proporcionó información adicional general."}
+            ---------------------------------------------------------------------------
+            
+            --- PROMPT ADICIONAL: COSAS ESPECÍFICAS A TENER EN CUENTA ---
+            {prompt_especifico_adicional if prompt_especifico_adicional else "No se proporcionaron prompts adicionales específicos para consideraciones adicionales."}
+            ----------------------------------------------------------
+
+            --- DATO CLAVE PARA LA CONSTRUCCIÓN ---
+            Basado en el foco temático y el proceso cognitivo, considera el siguiente dato o idea esencial:
+            "{dato_para_pregunta_foco}"
+
+            --- INSTRUCCIONES ESPECÍFICAS DE SALIDA PARA GRÁFICO ---
+            Después del bloque de JUSTIFICACIONES, incluye la siguiente información para indicar si el ítem necesita un gráfico y cómo sería:
+            GRAFICO_NECESARIO: [SÍ/NO]
+            DESCRIPCION_GRAFICO: [Si GRAFICO_NECESARIO es SÍ, proporciona una descripción MUY DETALLADA del gráfico. Incluye: tipo de gráfico (ej. barras, líneas, circular, diagrama de flujo, imagen de un objeto), datos o rangos de valores, etiquetas de ejes, elementos clave, propósito del gráfico y cómo se relaciona con la pregunta. Si es NO, escribe N/A.]
+
+            --- FORMATO ESPERADO DE SALIDA ---
+            PREGUNTA: [Redacta aquí el enunciado de la pregunta]
+            A. [Opción A]  
+            B. [Opción B]  
+            C. [Opción C] 
+            D. [Opción D]          
+            RESPUESTA CORRECTA: [Letra de la opción correcta, por ejemplo: B]
+            JUSTIFICACIONES:  
+            A. [Explica por qué A es incorrecta o correcta]  
+            B. [Explica por qué B es incorrecta o correcta]  
+            C. [Explica por qué C es incorrecta o correcta]  
+            D. [Explica por qué D es incorrecta o correcta]  
+            GRAFICO_NECESARIO: [SÍ/NO]
+            DESCRIPCION_GRAFICO: [Descripción detallada o N/A]
+            """
+            
+            # Si no es el primer intento, añade las observaciones de auditoría para refinamiento
+            if attempt > 1:
+                prompt_content_for_llm += f"""
+                --- RETROALIMENTACIÓN DE AUDITORÍA PARA REFINAMIENTO ---
+                El ítem anterior no cumplió con todos los criterios. Por favor, revisa las siguientes observaciones y mejora el ítem para abordarlas.
+                Observaciones del Auditor:
+                {audit_observations}
+                ---------------------------------------------------
+                """
+                # Agrega el ítem anterior para que el LLM lo pueda reformular
+                prompt_content_for_llm += f"""
+                --- ÍTEM ANTERIOR A REFINAR ---
+                {current_item_text}
+                -------------------------------
+                """
+            
+            # Guardar el prompt completo del generador antes de enviarlo
+            full_generation_prompt = prompt_content_for_llm
+
+            try:
+                with st.spinner(f"Generando contenido con IA ({gen_model_type} - {gen_model_name}, Intento {attempt})..."):
+                    full_llm_response = generar_texto_con_llm(gen_model_type, gen_model_name, prompt_content_for_llm)
+                    
+                    if full_llm_response is None: # Si hubo un error en la generación con LLM
+                        auditoria_status = "❌ RECHAZADO (Error de Generación)"
+                        audit_observations = "El modelo de generación no pudo producir una respuesta válida."
+                        break # Salir del bucle de refinamiento
+                        
+                    # --- Parsear la respuesta para extraer el ítem y la información del gráfico ---
+                    item_and_graphic_match = re.search(r"(PREGUNTA:.*?)(GRAFICO_NECESARIO:\s*(SÍ|NO).*?DESCRIPCION_GRAFICO:.*)", full_llm_response, re.DOTALL)
+                    
+                    if item_and_graphic_match:
+                        current_item_text = item_and_graphic_match.group(1).strip()
+                        grafico_info_block = item_and_graphic_match.group(2).strip()
+                        
+                        grafico_necesario_match = re.search(r"GRAFICO_NECESARIO:\s*(SÍ|NO)", grafico_info_block)
+                        if grafico_necesario_match:
+                            grafico_necesario = grafico_necesario_match.group(1).strip()
+
+                        descripcion_grafico_match = re.search(r"DESCRIPCION_GRAFICO:\s*(.*)", grafico_info_block, re.DOTALL)
+                        if descripcion_grafico_match:
+                            descripcion_grafico = descripcion_grafico_match.group(1).strip()
+                            if descripcion_grafico.upper() == 'N/A':
+                                descripcion_grafico = ""
+                    else:
+                        current_item_text = full_llm_response
+                        grafico_necesario = "NO"
+                        descripcion_grafico = ""
+                        st.warning("No se pudo parsear el formato de gráfico de la respuesta. Asumiendo que no requiere gráfico.")
+                    
+                with st.spinner(f"Auditando ítem ({audit_model_type} - {audit_model_name}, Intento {attempt})..."):
+                    auditoria_resultado, full_auditor_prompt = auditar_item_con_llm( # Recibe también el prompt del auditor
+                        audit_model_type, audit_model_name,
+                        item_generado=current_item_text,
+                        grado=grado_elegido, area=area_elegida, asignatura=asignatura_seleccionada, estacion=estacion_elegida,
+                        proceso_cognitivo=proceso_cognitivo_seleccionado, nanohabilidad=nanohabilidad_seleccionada,
+                        microhabilidad=microhabilidad_elegida, competencia_nanohabilidad=competencia_nanohabilidad_elegida,
+                        contexto_educativo=contexto_educativo, manual_reglas_texto=manual_reglas_texto,
+                        descripcion_bloom=descripcion_bloom,
+                        grafico_necesario=grafico_necesario,
+                        descripcion_grafico=descripcion_grafico,
+                        prompt_auditor_adicional=prompt_auditor_adicional # Pasa el prompt adicional del auditor
+                    )
+                    if auditoria_resultado is None: # Si hubo un error en la auditoría con LLM
+                        auditoria_status = "❌ RECHAZADO (Error de Auditoría)"
+                        audit_observations = "El modelo de auditoría no pudo producir una respuesta válida."
+                        break # Salir del bucle de refinamiento
+
+                    # --- Extraer DICTAMEN FINAL de forma más robusta ---
+                    dictamen_final_match = re.search(r"DICTAMEN FINAL:\s*\[(.*?)]", auditoria_resultado, re.DOTALL)
+                    if dictamen_final_match:
+                        auditoria_status = dictamen_final_match.group(1).strip()
+                    else:
+                        auditoria_status = "❌ RECHAZADO (no se pudo extraer dictamen)"
+                    
+                    observaciones_start = auditoria_resultado.find("OBSERVACIONES FINALES:")
+                    if observaciones_start != -1:
+                        audit_observations = auditoria_resultado[observaciones_start + len("OBSERVACIONES FINALES:"):].strip()
+                    else:
+                        audit_observations = "No se pudieron extraer observaciones específicas del auditor. Posiblemente un error de formato en la respuesta del auditor."
+                    
+                # Guardar los datos del ítem, incluyendo el estado final de la auditoría y observaciones
+                item_final_data = {
+                    "item_text": current_item_text,
+                    "classification": classification_details,
+                    "grafico_necesario": grafico_necesario,
+                    "descripcion_grafico": descripcion_grafico,
+                    "final_audit_status": auditoria_status, 
+                    "final_audit_observations": audit_observations,
+                    "generation_prompt_used": full_generation_prompt, # Guarda el prompt exacto usado por el generador
+                    "auditor_prompt_used": full_auditor_prompt
+                }
+
+                if auditoria_status == "✅ CUMPLE TOTALMENTE":
+                    break # Sale del ciclo de refinamiento si es aprobado
+                else:
+                    pass # Solo se registra el estado, no se muestra advertencia por cada intento en bucle masivo
+
+            except Exception as e:
+                audit_observations = f"Error técnico durante la generación: {e}. Por favor, corrige este problema."
+                auditoria_status = "❌ RECHAZADO (error técnico)"  
+                item_final_data = {
+                    "item_text": current_item_text if current_item_text else "No se pudo generar el ítem debido a un error técnico.",
+                    "classification": classification_details,
+                    "grafico_necesario": "NO",
+                    "descripcion_grafico": "",
+                    "final_audit_status": auditoria_status,
+                    "final_audit_observations": audit_observations,
+                    "generation_prompt_used": full_generation_prompt,
+                    "auditor_prompt_used": full_auditor_prompt
+                }
+                break # Salir del ciclo si hay un error técnico grave
+
+        if item_final_data is None:  
+            return None # Retorna None si no se logró generar nada en absoluto.
+
+        return item_final_data # Retorna el diccionario del ítem procesado
 
 # --- Función para exportar preguntas a un documento Word ---
 def exportar_a_word(preguntas_procesadas_list):
