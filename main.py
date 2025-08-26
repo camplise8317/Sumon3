@@ -16,7 +16,7 @@ openai_api_key = st.sidebar.text_input("API Key de OpenAI (para modelos GPT)", t
 gemini_config_ok = False
 openai_config_ok = False
 
-if _api_key:
+if gemini_api_key:
     try:
         genai.configure(api_key=gemini_api_key)
         gemini_config_ok = True
@@ -32,6 +32,8 @@ if openai_api_key:
     st.sidebar.success("API Key de OpenAI configurada.")
 else:
     st.sidebar.warning("Por favor, ingresa tu API Key de OpenAI para usar modelos GPT.")
+
+
 
 # --- Funciones de Lectura de Archivos (Adaptadas para Streamlit Uploader) ---
 @st.cache_data 
