@@ -873,7 +873,7 @@ if 'awaiting_review' in st.session_state and st.session_state['awaiting_review']
         st.session_state['awaiting_review'] = False
         st.session_state['current_review_index'] = 0
         del st.session_state['processed_items_list_for_review']
-        st.experimental_rerun()
+        st.rerun()
         
     item_to_review = items_to_review[current_index]
 
@@ -895,7 +895,7 @@ if 'awaiting_review' in st.session_state and st.session_state['awaiting_review']
         if st.button("✅ Aprobar y Siguiente"):
             st.session_state['approved_items'].append(item_to_review)
             st.session_state['current_review_index'] += 1
-            st.experimental_rerun()
+            st.rerun()
 
     with col_rechazo:
         if st.button("❌ Rechazar y Reintentar"):
@@ -941,7 +941,7 @@ if 'awaiting_review' in st.session_state and st.session_state['awaiting_review']
                 st.session_state['processed_items_list_for_review'][current_index] = refined_item_data
                 st.session_state['show_feedback_form'] = False
                 st.success("¡Ítem refinado exitosamente! Por favor, revísalo de nuevo.")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Fallo al refinar el ítem. Intenta de nuevo o ajusta tu feedback.")
 
