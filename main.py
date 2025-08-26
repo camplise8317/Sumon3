@@ -184,7 +184,7 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                                      informacion_adicional_usuario="", 
                                      prompt_bloom_adicional="", prompt_construccion_adicional="", prompt_especifico_adicional="", 
                                      prompt_auditor_adicional="",
-                                     contexto_general_estacion="", feedback_usuario=""): # Añade el feedback del usuario
+                                     contexto_general_estacion="", feedback_usuario="", item_a_refinar_text=""): # Añade el feedback del usuario y el texto del ítem
     """
     Genera una pregunta educativa de opción múltiple usando el modelo de generación seleccionado
     y la itera para refinarla si la auditoría lo requiere.
@@ -233,16 +233,98 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
     full_generation_prompt = "" # Variable para almacenar el prompt completo del generador
     full_auditor_prompt = "" # Variable para almacenar el prompt completo del auditor
 
-    # Añade el feedback del usuario al prompt principal del generador
-    prompt_con_feedback = ""
-    if feedback_usuario:
-        prompt_con_feedback = f"--- RETROALIMENTACIÓN DE USUARIO PARA REFINAMIENTO ---\n{feedback_usuario}\n---------------------------------------------------"
+    # Lógica para refinar un ítem existente si hay feedback del usuario
+    if feedback_usuario and item_a_refinar_text:
+        # Construye un prompt específico para la tarea de refinamiento
+        prompt_refinamiento = f"""
+        --- TAREA DE REFINAMIENTO ---
+        Eres un experto en ítems de evaluación. Tu tarea es REFINAR el siguiente ítem, corrigiendo o ajustando el texto para abordar las observaciones del usuario. No lo reescribas completamente; solo haz las correcciones necesarias.
+        
+        --- OBSERVACIONES DEL USUARIO PARA REFINAR ---
+        {feedback_usuario}
+        -------------------------------------------
+        
+        --- ÍTEM ORIGINAL A REFINAR ---
+        {item_a_refinar_text}
+        -----------------------------
+        
+        --- INSTRUCCIONES DE SALIDA ---
+        Devuelve el ítem refinado con el mismo formato original:
+        PREGUNTA: ...
+        A. ...
+        B. ...
+        C. ...
+        D. ...
+        RESPUESTA CORRECTA: ...
+        JUSTIFICACIONES:
+        A. ...
+        B. ...
+        C. ...
+        D. ...
+        GRAFICO_NECESARIO: [SÍ/NO]
+        DESCRIPCION_GRAFICO: [Descripción detallada o N/A]
+        """
+        
+        try:
+            with st.spinner(f"Refinando ítem con feedback de usuario ({gen_model_type} - {gen_model_name})..."):
+                full_llm_response = generar_texto_con_llm(gen_model_type, gen_model_name, prompt_refinamiento)
+            
+            if full_llm_response is None:
+                st.error("Fallo en la refinación del ítem.")
+                return None
+            
+            # Continuar con la auditoría del ítem refinado
+            item_and_graphic_match = re.search(r"(PREGUNTA:.*?)(GRAFICO_NECESARIO:\s*(SÍ|NO).*?DESCRIPCION_GRAFICO:.*)", full_llm_response, re.DOTALL)
+            if item_and_graphic_match:
+                current_item_text = item_and_graphic_match.group(1).strip()
+                grafico_info_block = item_and_graphic_match.group(2).strip()
+                grafico_necesario_match = re.search(r"GRAFICO_NECESARIO:\s*(SÍ|NO)", grafico_info_block)
+                if grafico_necesario_match:
+                    grafico_necesario = grafico_necesario_match.group(1).strip()
+                descripcion_grafico_match = re.search(r"DESCRIPCION_GRAFICO:\s*(.*)", grafico_info_block, re.DOTALL)
+                if descripcion_grafico_match:
+                    descripcion_grafico = descripcion_grafico_match.group(1).strip()
+                    if descripcion_grafico.upper() == 'N/A':
+                        descripcion_grafico = ""
+            else:
+                current_item_text = full_llm_response
+                grafico_necesario = "NO"
+                descripcion_grafico = ""
+            
+            auditoria_resultado, full_auditor_prompt = auditar_item_con_llm( 
+                audit_model_type, audit_model_name,
+                item_generado=current_item_text,
+                grado=grado_elegido, area=area_elegida, asignatura=asignatura_elegida, estacion=estacion_elegida,
+                proceso_cognitivo=proceso_cognitivo_elegido, nanohabilidad=nanohabilidad_elegida,
+                microhabilidad=microhabilidad_elegida, competencia_nanohabilidad=competencia_nanohabilidad_elegida,
+                contexto_educativo=contexto_educativo, manual_reglas_texto=manual_reglas_texto,
+                descripcion_bloom=descripcion_bloom,
+                grafico_necesario=grafico_necesario,
+                descripcion_grafico=descripcion_grafico,
+                prompt_auditor_adicional=prompt_auditor_adicional
+            )
 
+            dictamen_final_match = re.search(r"DICTAMEN FINAL:\s*\[(.*?)]", auditoria_resultado, re.DOTALL)
+            auditoria_status = dictamen_final_match.group(1).strip() if dictamen_final_match else "❌ RECHAZADO (no se pudo extraer dictamen)"
+            observaciones_start = auditoria_resultado.find("OBSERVACIONES FINALES:")
+            audit_observations = auditoria_resultado[observaciones_start + len("OBSERVACIONES FINALES:"):].strip() if observaciones_start != -1 else "No se pudieron extraer observaciones específicas."
+            
+            item_final_data = {
+                "item_text": current_item_text,
+                "classification": classification_details,
+                "grafico_necesario": grafico_necesario,
+                "descripcion_grafico": descripcion_grafico,
+                "final_audit_status": auditoria_status, 
+                "final_audit_observations": audit_observations,
+                "generation_prompt_used": prompt_refinamiento, # Guarda el prompt exacto usado para refinar
+                "auditor_prompt_used": full_auditor_prompt
+            }
+            return item_final_data
+
+    # Lógica de generación ORIGINAL para el primer intento (cuando no hay feedback)
     while auditoria_status != "✅ CUMPLE TOTALMENTE" and attempt < max_refinement_attempts:
         attempt += 1
-        # st.info(f"--- Generando/Refinando Ítem (Intento {attempt}/{max_refinement_attempts}) ---") # Comentado para no saturar si son muchos ítems
-
-        # Construcción del prompt para el GENERADOR
+        
         prompt_content_for_llm = f"""
         Eres un diseñador experto en ítems de evaluación educativa, especializado en pruebas tipo ICFES u otras de alta calidad técnica.
 
@@ -362,7 +444,6 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                 full_llm_response = generar_texto_con_llm(gen_model_type, gen_model_name, prompt_content_for_llm)
                 
                 if full_llm_response is None: # Si hubo un error en la generación con LLM
-                    # st.error(f"Fallo en la generación de texto con {gen_model_type} ({gen_model_name}).") # Comentado para no saturar si son muchos ítems
                     auditoria_status = "❌ RECHAZADO (Error de Generación)"
                     audit_observations = "El modelo de generación no pudo producir una respuesta válida."
                     break # Salir del bucle de refinamiento
@@ -403,7 +484,6 @@ def generar_pregunta_con_seleccion(gen_model_type, gen_model_name, audit_model_t
                     prompt_auditor_adicional=prompt_auditor_adicional # Pasa el prompt adicional del auditor
                 )
                 if auditoria_resultado is None: # Si hubo un error en la auditoría con LLM
-                    # st.error(f"Fallo en la auditoría con {audit_model_type} ({audit_model_name}).") # Comentado
                     auditoria_status = "❌ RECHAZADO (Error de Auditoría)"
                     audit_observations = "El modelo de auditoría no pudo producir una respuesta válida."
                     break # Salir del bucle de refinamiento
@@ -933,7 +1013,8 @@ if 'awaiting_review' in st.session_state and st.session_state['awaiting_review']
                 prompt_especifico_adicional=prompt_especifico_adicional,
                 prompt_auditor_adicional=prompt_auditor_adicional,
                 contexto_general_estacion=contexto_general_estacion,
-                feedback_usuario=feedback_completo # Pasar el feedback al generador
+                feedback_usuario=feedback_completo, # Pasar el feedback al generador
+                item_a_refinar_text=item_to_review['item_text'] # AÑADIDO: Pasar el texto del ítem a refinar
             )
             
             if refined_item_data:
